@@ -1,13 +1,15 @@
-package api;
+package clientApi2;
 
 import Event.AddLiftRideEvent;
 import EventGenerator.LiftRideGenerator;
 import io.swagger.client.ApiClient;
 import io.swagger.client.ApiException;
+import io.swagger.client.ApiResponse;
 import io.swagger.client.api.SkiersApi;
-import io.swagger.client.model.LiftRide;
-import io.swagger.client.model.ResortIDSeasonsBody;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -17,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author zoetian
  * @create 2/1/24
  */
-public class AddNewLifeRideApi {
+public class AddNewLifeRideApi2 {
     private static final String BASE_PATH = "http://localhost:8080/skierApp";
     private static final int NUM_OF_REQUESTS = 1000;
 
@@ -26,6 +28,10 @@ public class AddNewLifeRideApi {
     private static final int NUM_OF_LIFT_RIDE = 200000;
     private final static AtomicInteger success_request= new AtomicInteger();
     private final static AtomicInteger failure_request= new AtomicInteger();
+    private final static CountDownLatch completed = new CountDownLatch(NUM_THREADS * NUM_OF_REQUESTS);
+    private final static BlockingQueue<String> infoQueue = new LinkedBlockingQueue();
+
+    private static CountDownLatch numOfInfo = new CountDownLatch(NUM_OF_LIFT_RIDE);
 
 
 
@@ -34,7 +40,6 @@ public class AddNewLifeRideApi {
 
     public static void main(String[] args) throws InterruptedException {
         BlockingQueue<AddLiftRideEvent> blockingQueue = new LinkedBlockingQueue();
-//        CountDownLatch completed = new CountDownLatch(NUM_THREADS * NUM_OF_REQUESTS);
         ExecutorService postExecutorService = Executors.newFixedThreadPool(NUM_THREADS);
         Timestamp start = new Timestamp(System.currentTimeMillis());
 //        single thread : create event
@@ -51,7 +56,6 @@ public class AddNewLifeRideApi {
             postExecutorService.submit(() -> {
                 try {
                     sendRequest(blockingQueue);
-//                    completed.countDown();
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -61,18 +65,26 @@ public class AddNewLifeRideApi {
 
 //        post the rest of request
         ExecutorService postExecutorService2 = Executors.newFixedThreadPool(200);
-//        try{
-////            completed.await();
-//        }catch (InterruptedException e){
-//            e.printStackTrace();
-//        }finally {
-//            for(int m = 0 ; m < 200; m++) {
-//                postExecutorService2.submit(() -> sendRequest2(blockingQueue));
-//            }
-//        }
-        for(int m = 0 ; m < 200; m++) {
+        try{
+            completed.await();
+        }catch (InterruptedException e){
+            e.printStackTrace();
+        }finally {
+            for(int m = 0 ; m < 200; m++) {
                 postExecutorService2.submit(() -> sendRequest2(blockingQueue));
             }
+        }
+//         write the String in infoQueue to a file(info.csv)
+        ExecutorService writeExecutorService = Executors.newSingleThreadExecutor();
+        writeExecutorService.submit(() -> {
+            try {
+                writeToFile();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         postExecutorService2.shutdown();
         try {
@@ -92,6 +104,13 @@ public class AddNewLifeRideApi {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+
+        writeExecutorService.shutdown();
+        try {
+            writeExecutorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         Timestamp end = new Timestamp(System.currentTimeMillis());
         long wallTime = end.getTime() - start.getTime();
         double throughput = (success_request.get())/((wallTime)/1000);
@@ -100,6 +119,17 @@ public class AddNewLifeRideApi {
         System.out.println("The total unsuccessful request is " + failure_request.get());
         System.out.println("The total  throughput in requests per second " + throughput);
 
+    }
+        private static void writeToFile() throws IOException, InterruptedException {
+        BufferedWriter writer = new BufferedWriter(new FileWriter("requestInfo.csv"));
+        while(!infoQueue.isEmpty() || numOfInfo.getCount() > 0){
+            String info = infoQueue.take();
+            if(info != null){
+                writer.write(info);
+                numOfInfo.countDown();
+            }
+        }
+        writer.close();
     }
 
     private static void sendRequest2(BlockingQueue<AddLiftRideEvent> blockingQueue) {
@@ -112,7 +142,15 @@ public class AddNewLifeRideApi {
             boolean success = false;
             while(retry_left > 0 && !success){
                 try {
-                    skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
+                    Timestamp start = new Timestamp(System.currentTimeMillis());
+                    ApiResponse<Void> response =  skiersApi.writeNewLiftRideWithHttpInfo(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
+                    Timestamp end = new Timestamp(System.currentTimeMillis());
+                    long latency = end.getTime() - start.getTime();
+                    String info = "The request start time is " + start + "\n" +
+                            "The total time for this request is " + latency + "milliseconds" + "\n" +
+                            "The response code is "  + response.getStatusCode() + "\n" +
+                            "The request Type is POST" + "\n";
+                    infoQueue.offer(info);
                     success = true;
                 } catch (ApiException e) {
                     System.out.println("Sending post request failed for Add New Life Ride, Retry");
@@ -139,8 +177,18 @@ public class AddNewLifeRideApi {
             boolean success = false;
             while(retry_left > 0 && !success){
                 try {
-                    skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
+                    Timestamp start = new Timestamp(System.currentTimeMillis());
+                    ApiResponse<Void> response =  skiersApi.writeNewLiftRideWithHttpInfo(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
+                    Timestamp end = new Timestamp(System.currentTimeMillis());
+                    long latency = end.getTime() - start.getTime();
+                    String info = "The request start time is " + start + "\n" +
+                            "The total time for this request is " + latency + "milliseconds" + "\n" +
+                            "The response code is " + response.getStatusCode() + "\n" +
+                            "The request Type is POST" + "\n";
+                    infoQueue.offer(info);
                     success = true;
+                    completed.countDown();
+
                 } catch (ApiException e) {
                     System.out.println("Sending post request failed for Add New Life Ride, Retry");
                     retry_left--;

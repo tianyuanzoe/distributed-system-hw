@@ -16,15 +16,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @create 2/1/24
  */
 public class AddNewLifeRideApi1 {
-    private static final String BASE_PATH = "http://localhost:8080/skierApp";
+    private static final String BASE_PATH = "http://34.210.10.253:8080/skierApp";
     private static final int NUM_OF_REQUESTS = 1000;
 
     private static final int NUM_THREADS = 32;
-    private static final int RETRY_LIMIT = 5;
+    private static final int RETRY_LIMIT = 10;
     private static final int NUM_OF_LIFT_RIDE = 200000;
     private final static AtomicInteger success_request= new AtomicInteger();
     private final static AtomicInteger failure_request= new AtomicInteger();
-    private final static CountDownLatch completed = new CountDownLatch(NUM_THREADS * NUM_OF_REQUESTS);
+    private final static CountDownLatch completed = new CountDownLatch(1);
 
 
 
@@ -50,6 +50,7 @@ public class AddNewLifeRideApi1 {
             postExecutorService.submit(() -> {
                 try {
                     sendRequest(blockingQueue);
+                    completed.countDown();
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -137,8 +138,6 @@ public class AddNewLifeRideApi1 {
                 try {
                     skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
                     success = true;
-                    completed.countDown();
-
                 } catch (ApiException e) {
                     System.out.println("Sending post request failed for Add New Life Ride, Retry");
                     retry_left--;

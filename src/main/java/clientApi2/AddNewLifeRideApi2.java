@@ -11,6 +11,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @create 2/1/24
  */
 public class AddNewLifeRideApi2 {
-    private static final String BASE_PATH = "http://localhost:8080/skierApp";
+    private static final String BASE_PATH = "http://34.210.10.253:8080/skierApp";
     private static final int NUM_OF_REQUESTS = 1000;
 
     private static final int NUM_THREADS = 32;
@@ -28,12 +29,12 @@ public class AddNewLifeRideApi2 {
     private static final int NUM_OF_LIFT_RIDE = 200000;
     private final static AtomicInteger success_request= new AtomicInteger();
     private final static AtomicInteger failure_request= new AtomicInteger();
-    private final static CountDownLatch completed = new CountDownLatch(NUM_THREADS * NUM_OF_REQUESTS);
-    private final static BlockingQueue<String> infoQueue = new LinkedBlockingQueue();
+    private final static CountDownLatch completed = new CountDownLatch(1);
+    private final static BlockingQueue<String> infoQueue = new LinkedBlockingQueue<>();
 
     private static CountDownLatch numOfInfo = new CountDownLatch(NUM_OF_LIFT_RIDE);
 
-
+    private static BlockingQueue<Long> latencyQueue = new LinkedBlockingQueue();
 
 
 
@@ -56,6 +57,7 @@ public class AddNewLifeRideApi2 {
             postExecutorService.submit(() -> {
                 try {
                     sendRequest(blockingQueue);
+                    completed.countDown();
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -114,13 +116,42 @@ public class AddNewLifeRideApi2 {
         Timestamp end = new Timestamp(System.currentTimeMillis());
         long wallTime = end.getTime() - start.getTime();
         double throughput = (success_request.get())/((wallTime)/1000);
+        long maxLatency = calculateLatency()[0];
+        long minLatency = calculateLatency()[1];
+        long avgLatency = calculateLatency()[2];
+        long median = calculateLatency()[3];
+        long p99 = calculateLatency()[4];
+        System.out.println("The max latency is " + maxLatency + " milliseconds");
+        System.out.println("The min latency is " + minLatency + " milliseconds");
+        System.out.println("The avg latency is " + avgLatency + " milliseconds");
+        System.out.println("The median latency is " + median + " milliseconds");
+        System.out.println("The p99  is " + p99 + " milliseconds");
         System.out.println("The total time for post request is " + wallTime + " milliseconds");
         System.out.println("The total success request is " + success_request.get());
         System.out.println("The total unsuccessful request is " + failure_request.get());
         System.out.println("The total  throughput in requests per second " + throughput);
 
     }
-        private static void writeToFile() throws IOException, InterruptedException {
+
+    private static long[] calculateLatency() {
+        long max = Long.MIN_VALUE;
+        long min = Long.MAX_VALUE;
+        long sum = 0;
+        long[] toArray = latencyQueue.stream().mapToLong(l -> l).toArray();
+        Arrays.sort(toArray);
+        for(long latency:latencyQueue){
+            max = Math.max(max,latency);
+            min = Math.min(min,latency);
+            sum += latency;
+        }
+        long avg = sum/latencyQueue.size();
+        long median = toArray[toArray.length/2];
+        long p99 = toArray[(int) (Math.ceil(toArray.length * 0.99))];
+        return new long[]{max,min,avg,median,p99};
+
+    }
+
+    private static void writeToFile() throws IOException, InterruptedException {
         BufferedWriter writer = new BufferedWriter(new FileWriter("requestInfo.csv"));
         while(!infoQueue.isEmpty() || numOfInfo.getCount() > 0){
             String info = infoQueue.take();
@@ -150,6 +181,7 @@ public class AddNewLifeRideApi2 {
                             "The total time for this request is " + latency + "milliseconds" + "\n" +
                             "The response code is "  + response.getStatusCode() + "\n" +
                             "The request Type is POST" + "\n";
+                    latencyQueue.offer(latency);
                     infoQueue.offer(info);
                     success = true;
                 } catch (ApiException e) {
@@ -185,10 +217,9 @@ public class AddNewLifeRideApi2 {
                             "The total time for this request is " + latency + "milliseconds" + "\n" +
                             "The response code is " + response.getStatusCode() + "\n" +
                             "The request Type is POST" + "\n";
+                    latencyQueue.offer(latency);
                     infoQueue.offer(info);
                     success = true;
-                    completed.countDown();
-
                 } catch (ApiException e) {
                     System.out.println("Sending post request failed for Add New Life Ride, Retry");
                     retry_left--;

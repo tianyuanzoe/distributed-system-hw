@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @create 2/1/24
  */
 public class AddNewLifeRideApi2 {
-    private static final String BASE_PATH = "http://34.210.10.253:8080/skierApp";
+    private static final String BASE_PATH = "http://44.232.238.225:8080/skierApp";
     private static final int NUM_OF_REQUESTS = 1000;
 
     private static final int NUM_THREADS = 32;
@@ -177,10 +177,8 @@ public class AddNewLifeRideApi2 {
                     ApiResponse<Void> response =  skiersApi.writeNewLiftRideWithHttpInfo(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
                     Timestamp end = new Timestamp(System.currentTimeMillis());
                     long latency = end.getTime() - start.getTime();
-                    String info = "The request start time is " + start + "\n" +
-                            "The total time for this request is " + latency + "milliseconds" + "\n" +
-                            "The response code is "  + response.getStatusCode() + "\n" +
-                            "The request Type is POST" + "\n";
+                    long throughput = 1000/latency;
+                    String info = start.getTime()+ "," + "POST," + latency + "," +response.getStatusCode() + "," + throughput + "\n";
                     latencyQueue.offer(latency);
                     infoQueue.offer(info);
                     success = true;
@@ -213,10 +211,8 @@ public class AddNewLifeRideApi2 {
                     ApiResponse<Void> response =  skiersApi.writeNewLiftRideWithHttpInfo(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
                     Timestamp end = new Timestamp(System.currentTimeMillis());
                     long latency = end.getTime() - start.getTime();
-                    String info = "The request start time is " + start + "\n" +
-                            "The total time for this request is " + latency + "milliseconds" + "\n" +
-                            "The response code is " + response.getStatusCode() + "\n" +
-                            "The request Type is POST" + "\n";
+                    long throughput = 1000/latency;
+                    String info = start.getTime()+ "," + "POST," + latency + "," +response.getStatusCode() + "," + throughput + "\n";
                     latencyQueue.offer(latency);
                     infoQueue.offer(info);
                     success = true;

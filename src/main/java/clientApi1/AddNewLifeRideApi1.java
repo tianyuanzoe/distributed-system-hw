@@ -16,8 +16,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @create 2/1/24
  */
 public class AddNewLifeRideApi1 {
-    private static final String BASE_PATH = "http://44.232.238.225:8080/skierApp";
+//    private static final String BASE_PATH = "http://44.232.238.225:8080/skierApp";
 //private static final String BASE_PATH = "http://localhost:8080/skierApp";
+private static final String BASE_PATH = "http://SkierServerLoadBalancer-1197386842.us-west-2.elb.amazonaws.com/skierApp";
 
     private static final int NUM_OF_REQUESTS = 1000;
 

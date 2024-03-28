@@ -2,11 +2,15 @@ package clientApi1;
 
 import Event.AddLiftRideEvent;
 import EventGenerator.LiftRideGenerator;
+import com.google.common.util.concurrent.RateLimiter;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.swagger.client.ApiClient;
 import io.swagger.client.ApiException;
 import io.swagger.client.api.SkiersApi;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -30,6 +34,11 @@ private static final String BASE_PATH = "http://SkierServerLoadBalancer-11973868
     private final static AtomicInteger success_request= new AtomicInteger();
     private final static AtomicInteger failure_request= new AtomicInteger();
     private final static CountDownLatch completed = new CountDownLatch(1);
+    private static CircuitBreaker circuitBreaker = CircuitBreaker.of("skiersApiCircuitBreaker",
+            CircuitBreakerConfig.custom()
+                    .failureRateThreshold(50)
+                    .waitDurationInOpenState(Duration.ofSeconds(10))
+                    .build());
 
 
 
@@ -113,10 +122,18 @@ private static final String BASE_PATH = "http://SkierServerLoadBalancer-11973868
             boolean success = false;
             while(retry_left > 0 && !success){
                 try {
-                    skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
-
+//                    skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
+                    circuitBreaker.executeSupplier(() -> {
+                        try {
+                            skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(), event.getDayID(), event.getSkierID());
+                        } catch (ApiException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return null;
+                    });
                     success = true;
-                } catch (ApiException e) {
+
+                } catch (Exception e) {
                     System.out.println("Sending post request failed for Add New Life Ride, Retry");
                     retry_left--;
                 }
@@ -141,12 +158,19 @@ private static final String BASE_PATH = "http://SkierServerLoadBalancer-11973868
             boolean success = false;
             while(retry_left > 0 && !success){
                 try {
-                    skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
+//                    skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(),event.getDayID(),event.getSkierID());
+                    circuitBreaker.executeSupplier(() -> {
+                        try {
+                            skiersApi.writeNewLiftRide(event.getLiftRide(), event.getResortID(), event.getSeasonID(), event.getDayID(), event.getSkierID());
+                        } catch (ApiException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return null;
+                    });
                     success = true;
-                } catch (ApiException e) {
+                } catch (Exception e) {
                     System.out.println("Sending post request failed for Add New Life Ride, Retry");
                     retry_left--;
-                    failure_request.getAndIncrement();
                 }
             }
             if(!success){

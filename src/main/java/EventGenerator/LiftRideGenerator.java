@@ -12,7 +12,7 @@ import java.util.Random;
 public class LiftRideGenerator {
     private static final int MIN  = 1;
     private static final int MAX_SKIER_ID = 100000;
-    private static final int MAX_RESORT_ID = 10;
+    private static final int MAX_RESORT_ID = 100000;
     private static final int MAX_LIFT_ID = 40;
     private static final String SEASON_ID = "2024";
     private static final String DAY_ID = "1";
